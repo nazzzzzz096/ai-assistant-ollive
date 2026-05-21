@@ -1,0 +1,8 @@
+streamlit
+torch
+transformers
+accelerate
+sentencepiece
+huggingface_hub
+python-dotenv
+request
