@@ -305,15 +305,6 @@ assistant_logs.jsonl
 
 ---
 
-# Deployment
-
-The OSS assistant can be deployed using:
-
-* [Hugging Face Spaces](https://huggingface.co/spaces?utm_source=chatgpt.com)
-* [Streamlit Community Cloud](https://streamlit.io/cloud?utm_source=chatgpt.com)
-
----
-
 # License
 
 This project is licensed under the MIT License.
