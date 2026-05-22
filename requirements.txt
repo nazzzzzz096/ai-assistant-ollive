@@ -6,3 +6,4 @@ sentencepiece
 huggingface_hub
 python-dotenv
 request
+google-generativeai
