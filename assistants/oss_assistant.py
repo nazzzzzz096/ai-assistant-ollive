@@ -53,37 +53,67 @@ conversation_history = [
     }
 ]
 
-
-def generate_response(user_input: str) -> str:
-    """Generate a response for the given user input.
-    
-    Returns the assistant's reply, or an error message string on failure.
+def generate_response(messages) -> str:
+    """
+    Generate response using conversation history.
     """
 
-    if not user_input or not user_input.strip():
-        logger.warning("Received empty or whitespace-only user input.")
-        return "Please enter a message."
-
-    logger.info(f"User input received ({len(user_input)} chars).")
-
-    conversation_history.append({"role": "user", "content": user_input})
-
     try:
+
+        # Build prompt messages
+        prompt_messages = [
+            {
+                "role": "system",
+                "content": "You are a helpful AI assistant."
+            }
+        ]
+
+        # Add sliding-window memory
+        for msg in messages:
+
+            prompt_messages.append({
+                "role": msg["role"],
+                "content": msg["content"]
+            })
+
+        logger.info(
+            f"Generating response using "
+            f"{len(messages)} conversation messages."
+        )
+
+        # Apply chat template
         text = tokenizer.apply_chat_template(
-            conversation_history,
+            prompt_messages,
             tokenize=False,
             add_generation_prompt=True
         )
+
         logger.debug("Chat template applied successfully.")
 
     except Exception as e:
-        logger.error(f"Failed to apply chat template: {e}", exc_info=True)
-        conversation_history.pop()  # Roll back the appended user message
-        return "Sorry, I encountered an error formatting your message."
+
+        logger.error(
+            f"Failed to apply chat template: {e}",
+            exc_info=True
+        )
+
+        return (
+            "Sorry, I encountered an error "
+            "formatting your message."
+        )
 
     try:
-        inputs = tokenizer(text, return_tensors="pt").to(model.device)
-        logger.debug(f"Input tokenized. Token count: {inputs.input_ids.shape[-1]}")
+
+        inputs = tokenizer(
+            text,
+            return_tensors="pt"
+        ).to(model.device)
+
+        logger.debug(
+            f"Input tokenized. "
+            f"Token count: "
+            f"{inputs.input_ids.shape[-1]}"
+        )
 
         outputs = model.generate(
             **inputs,
@@ -92,33 +122,71 @@ def generate_response(user_input: str) -> str:
             do_sample=True,
             pad_token_id=tokenizer.eos_token_id
         )
+
         logger.debug("Model inference completed.")
 
     except RuntimeError as e:
-        logger.error(f"RuntimeError during inference (possible OOM): {e}", exc_info=True)
-        conversation_history.pop()
-        return "Sorry, I ran into a memory or device error. Try a shorter message."
+
+        logger.error(
+            f"RuntimeError during inference: {e}",
+            exc_info=True
+        )
+
+        return (
+            "Sorry, I ran into a memory "
+            "or device issue."
+        )
 
     except Exception as e:
-        logger.error(f"Unexpected error during inference: {e}", exc_info=True)
-        conversation_history.pop()
-        return "Sorry, something went wrong while generating a response."
+
+        logger.error(
+            f"Unexpected inference error: {e}",
+            exc_info=True
+        )
+
+        return (
+            "Sorry, something went wrong "
+            "while generating a response."
+        )
 
     try:
-        generated_tokens = outputs[0][inputs.input_ids.shape[-1]:]
-        response = tokenizer.decode(generated_tokens, skip_special_tokens=True)
-        assistant_response = response.split("assistant")[-1].strip()
+
+        generated_tokens = outputs[0][
+            inputs.input_ids.shape[-1]:
+        ]
+
+        response = tokenizer.decode(
+            generated_tokens,
+            skip_special_tokens=True
+        )
+
+        assistant_response = response.strip()
 
         if not assistant_response:
-            logger.warning("Model returned an empty response after decoding.")
-            assistant_response = "I'm not sure how to respond to that."
 
-        logger.info(f"Response generated ({len(assistant_response)} chars).")
+            logger.warning(
+                "Model returned empty response."
+            )
+
+            assistant_response = (
+                "I'm not sure how to respond."
+            )
+
+        logger.info(
+            f"Response generated "
+            f"({len(assistant_response)} chars)."
+        )
+
+        return assistant_response
 
     except Exception as e:
-        logger.error(f"Failed to decode model output: {e}", exc_info=True)
-        conversation_history.pop()
-        return "Sorry, I couldn't decode the response."
 
-    conversation_history.append({"role": "assistant", "content": assistant_response})
-    return assistant_response
+        logger.error(
+            f"Failed to decode response: {e}",
+            exc_info=True
+        )
+
+        return (
+            "Sorry, I couldn't decode "
+            "the model response."
+        )

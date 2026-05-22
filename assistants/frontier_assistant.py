@@ -41,85 +41,174 @@ except Exception as e:
 conversation_history = []
 
 
-def generate_frontier_response(user_input: str) -> str:
-    """Generate a response from Gemini for the given user input.
-
-    Returns the assistant's reply, or a descriptive error message string on failure.
+def generate_frontier_response(messages) -> str:
+    """
+    Generate a response from Gemini
+    using conversation history.
     """
 
-    if not user_input or not user_input.strip():
-        logger.warning("Received empty or whitespace-only input.")
-        return "Please enter a valid message."
-
-    logger.info(f"User input received ({len(user_input)} chars).")
-
-    conversation_history.append({
-        "role": "user",
-        "parts": [user_input]
-    })
-
     try:
-        response = model.generate_content(conversation_history)
-        logger.debug("Gemini API call completed.")
 
-        # Blocked or empty response guard
+        if not messages:
+
+            logger.warning(
+                "Empty conversation history received."
+            )
+
+            return "Please enter a valid message."
+
+        logger.info(
+            f"Generating Gemini response using "
+            f"{len(messages)} messages."
+        )
+
+        # =========================
+        # Convert messages format
+        # =========================
+        formatted_history = []
+
+        for msg in messages:
+
+            role = msg["role"]
+            content = msg["content"]
+
+            # Gemini expects:
+            # user / model
+            gemini_role = (
+                "model"
+                if role == "assistant"
+                else "user"
+            )
+
+            formatted_history.append({
+                "role": gemini_role,
+                "parts": [content]
+            })
+
+        # =========================
+        # Generate Response
+        # =========================
+        response = model.generate_content(
+            formatted_history
+        )
+
+        logger.debug(
+            "Gemini API call completed."
+        )
+
+        # =========================
+        # Safety / Empty Checks
+        # =========================
         if not response.candidates:
-            logger.warning("Gemini returned no candidates. Prompt may have been blocked.")
-            conversation_history.pop()
-            return "My response was blocked. Please rephrase your message."
 
-        candidate = response.candidates[0]
+            logger.warning(
+                "Gemini returned no candidates."
+            )
 
-        if candidate.finish_reason.name not in ("STOP", "MAX_TOKENS"):
-            logger.warning(f"Unexpected finish reason: {candidate.finish_reason.name}")
+            return (
+                "My response was blocked. "
+                "Please rephrase your message."
+            )
 
-        # .text raises if parts are empty — access safely
         try:
-            assistant_response = response.text.strip()
+
+            assistant_response = (
+                response.text.strip()
+            )
+
         except ValueError as e:
-            logger.warning(f"response.text unavailable (likely blocked content): {e}")
-            conversation_history.pop()
-            return "The response was blocked or empty. Please rephrase your message."
+
+            logger.warning(
+                f"Blocked/empty response: {e}"
+            )
+
+            return (
+                "The response was blocked "
+                "or empty."
+            )
 
         if not assistant_response:
-            logger.warning("Gemini returned an empty text response.")
-            conversation_history.pop()
-            return "I received an empty response. Please try again."
 
-        conversation_history.append({
-            "role": "model",
-            "parts": [assistant_response]
-        })
+            logger.warning(
+                "Gemini returned empty response."
+            )
 
-        logger.info(f"Response generated ({len(assistant_response)} chars).")
+            return (
+                "I received an empty response."
+            )
+
+        logger.info(
+            f"Gemini response generated "
+            f"({len(assistant_response)} chars)."
+        )
+
         return assistant_response
 
     except PermissionDenied as e:
-        logger.error(f"API key invalid or unauthorized: {e}", exc_info=True)
-        conversation_history.pop()
-        return "Authentication failed. Check your GEMINI_API_KEY."
+
+        logger.error(
+            f"Unauthorized Gemini access: {e}",
+            exc_info=True
+        )
+
+        return (
+            "Authentication failed. "
+            "Check your GEMINI_API_KEY."
+        )
 
     except ResourceExhausted as e:
-        logger.error(f"Gemini quota exceeded: {e}", exc_info=True)
-        conversation_history.pop()
-        return "Rate limit reached. Please wait a moment and try again."
+
+        logger.error(
+            f"Quota exceeded: {e}",
+            exc_info=True
+        )
+
+        return (
+            "Rate limit reached. "
+            "Please wait and try again."
+        )
 
     except InvalidArgument as e:
-        logger.error(f"Invalid request sent to Gemini: {e}", exc_info=True)
-        conversation_history.pop()
-        return "The request was invalid. Try rephrasing your message."
+
+        logger.error(
+            f"Invalid Gemini request: {e}",
+            exc_info=True
+        )
+
+        return (
+            "Invalid request sent to Gemini."
+        )
 
     except RetryError as e:
-        logger.error(f"Gemini API retry timeout: {e}", exc_info=True)
-        conversation_history.pop()
-        return "The request timed out. Please try again."
+
+        logger.error(
+            f"Gemini timeout: {e}",
+            exc_info=True
+        )
+
+        return (
+            "The request timed out."
+        )
 
     except GoogleAPICallError as e:
-        logger.error(f"Gemini API call error: {e}", exc_info=True)
-        conversation_history.pop()
-        return "A network or API error occurred. Please try again."
+
+        logger.error(
+            f"Gemini API error: {e}",
+            exc_info=True
+        )
+
+        return (
+            "A network/API error occurred."
+        )
 
     except Exception as e:
-        logger.error(f"Unexpected error during Gemini generation: {e}", exc_info=True)
-        conversation_history.pop()
-        return "Sorry, something unexpected went wrong."
+
+        logger.error(
+            f"Unexpected Gemini error: {e}",
+            exc_info=True
+        )
+
+        return (
+            "Sorry, something unexpected "
+            "went wrong."
+        )
